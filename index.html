@@ -463,7 +463,7 @@
   <!-- ——— NOTICE ——— -->
   <div class="notice">
     <span class="notice-icon">ℹ️</span>
-    <span>Статистика подгружается через открытые Spotify API и публичные данные. Соцсети (Instagram, TikTok) не имеют публичного API — данные обновляются вручную или через сторонние сервисы. Встроенные виджеты некоторых платформ могут не работать из-за политики CORS.</span>
+    <span><b>Spotify</b> — данные через анонимный токен (CORS-прокси). <b>YouTube</b> — нужен бесплатный API-ключ Google (вставьте в CONFIG вверху скрипта). <b>VK</b> — публичный API без токена. <b>Instagram, TikTok, Telegram</b> — публичных API нет, данные недоступны без бэкенда.</span>
   </div>
 
   <!-- ——— MUSIC PLATFORMS ——— -->
@@ -809,12 +809,24 @@
 
 <script>
 /* =========================================================
+   CONFIGURATION — вставьте ваши ключи здесь
+   =========================================================
+   YouTube API Key: бесплатно, получить на
+     https://console.cloud.google.com → APIs & Services → YouTube Data API v3
+   VK Service Token: опционально, для надёжного получения подписчиков
+     https://vk.com/dev → Создать приложение (Standalone)
+   ========================================================= */
+const CONFIG = {
+  YOUTUBE_API_KEY: '',   // ← вставьте ключ YouTube Data API v3
+  VK_SERVICE_TOKEN: '',  // ← вставьте VK Service Token (или оставьте пустым)
+};
+
+/* =========================================================
    TOGGLE LOGIC
    ========================================================= */
 function togglePlatform(id) {
   const card = document.getElementById('card-' + id);
   const wasExpanded = card.classList.contains('expanded');
-  // collapse all
   document.querySelectorAll('.platform-card').forEach(c => c.classList.remove('expanded'));
   if (!wasExpanded) card.classList.add('expanded');
 }
@@ -827,15 +839,9 @@ function toggleSocial(id) {
 }
 
 /* =========================================================
-   SPOTIFY API — via public token-free endpoints
+   UTILS
    ========================================================= */
 const SPOTIFY_ARTIST_ID = '3A2TndJ86xZAaesA3pVhBo';
-
-async function getSpotifyToken() {
-  // Using Spotify's open access (client credentials not needed for catalog reads via oEmbed + open data)
-  // We'll use the unofficial open endpoint that doesn't require auth for basic info
-  return null;
-}
 
 function fmtNum(n) {
   if (!n && n !== 0) return '—';
@@ -844,74 +850,139 @@ function fmtNum(n) {
   return n.toString();
 }
 
-// Use Spotify's open/embeddable API
-async function loadSpotifyData() {
-  try {
-    // Fetch artist info via open Spotify API (no auth needed for some endpoints)
-    const resp = await fetch(`https://open.spotify.com/oembed?url=https://open.spotify.com/artist/${SPOTIFY_ARTIST_ID}`);
-    if (resp.ok) {
-      const data = await resp.json();
-      // oEmbed gives us thumbnail, title
-      // Set avatar from Spotify thumbnail
-      const avatar = document.getElementById('artistAvatar');
-      if (data.thumbnail_url) {
-        avatar.innerHTML = `<img src="${data.thumbnail_url}" alt="borntopraay">`;
-      }
-    }
-  } catch(e) {}
-
-  // Load albums via open Spotify catalog
-  try {
-    const resp = await fetch(`https://api.spotify.com/v1/artists/${SPOTIFY_ARTIST_ID}/albums?limit=20&include_groups=album,single`, {
-      headers: { 'Authorization': 'Bearer ' + await getValidSpotifyToken() }
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      renderDiscography(data.items);
-      renderDropdownReleases(data.items.slice(0, 5));
-    }
-  } catch(e) {
-    // fallback: render static known releases
-    renderStaticReleases();
-  }
-
-  // Artist stats
-  try {
-    const resp = await fetch(`https://api.spotify.com/v1/artists/${SPOTIFY_ARTIST_ID}`, {
-      headers: { 'Authorization': 'Bearer ' + await getValidSpotifyToken() }
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      document.getElementById('sp-followers').textContent = fmtNum(data.followers?.total);
-      document.getElementById('sp-popularity').textContent = data.popularity + '/100';
-      if (data.images?.[0]?.url) {
-        const avatar = document.getElementById('artistAvatar');
-        avatar.innerHTML = `<img src="${data.images[0].url}" alt="borntopraay">`;
-      }
-    }
-  } catch(e) {
-    document.getElementById('sp-followers').textContent = '—';
-    document.getElementById('sp-popularity').textContent = '—';
-  }
-
-  document.getElementById('sp-listeners').textContent = '—';
-}
-
+/* =========================================================
+   SPOTIFY — получаем анонимный токен через CORS-прокси
+   Официальный Spotify API требует серверного Client Credentials.
+   Неофициальный эндпоинт /get_access_token блокируется CORS
+   в браузере напрямую — решаем через corsproxy.io.
+   ========================================================= */
 let _spToken = null;
+
 async function getValidSpotifyToken() {
   if (_spToken) return _spToken;
-  // Get anonymous token from Spotify
+  // Попытка 1: через CORS-прокси (работает без сервера)
   try {
-    const resp = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player', {
+    const target = encodeURIComponent('https://open.spotify.com/get_access_token?reason=transport&productType=web_player');
+    const resp = await fetch('https://corsproxy.io/?' + target, {
       headers: { 'Accept': 'application/json' }
     });
     if (resp.ok) {
       const d = await resp.json();
-      _spToken = d.accessToken;
-      return _spToken;
+      if (d.accessToken) { _spToken = d.accessToken; return _spToken; }
+    }
+  } catch(e) {}
+  // Попытка 2: напрямую (работает если пользователь залогинен в Spotify)
+  try {
+    const resp = await fetch('https://open.spotify.com/get_access_token?reason=transport&productType=web_player', {
+      credentials: 'include', headers: { 'Accept': 'application/json' }
+    });
+    if (resp.ok) {
+      const d = await resp.json();
+      if (d.accessToken) { _spToken = d.accessToken; return _spToken; }
     }
   } catch(e) {}
   return null;
+}
+
+async function loadSpotifyData() {
+  // Аватар через oEmbed (работает без токена, без CORS-проблем)
+  try {
+    const resp = await fetch(`https://open.spotify.com/oembed?url=https://open.spotify.com/artist/${SPOTIFY_ARTIST_ID}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.thumbnail_url) {
+        document.getElementById('artistAvatar').innerHTML = `<img src="${data.thumbnail_url}" alt="borntopraay">`;
+      }
+    }
+  } catch(e) {}
+
+  const token = await getValidSpotifyToken();
+
+  // Статистика артиста
+  if (token) {
+    try {
+      const resp = await fetch(`https://api.spotify.com/v1/artists/${SPOTIFY_ARTIST_ID}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        document.getElementById('sp-followers').textContent = fmtNum(data.followers?.total);
+        document.getElementById('sp-popularity').textContent = (data.popularity ?? '—') + (data.popularity != null ? '/100' : '');
+        if (data.images?.[0]?.url) {
+          document.getElementById('artistAvatar').innerHTML = `<img src="${data.images[0].url}" alt="borntopraay">`;
+        }
+      } else {
+        setSpotifyFallback();
+      }
+    } catch(e) { setSpotifyFallback(); }
+
+    // Дискография
+    try {
+      const resp = await fetch(`https://api.spotify.com/v1/artists/${SPOTIFY_ARTIST_ID}/albums?limit=20&include_groups=album,single`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        renderDiscography(data.items);
+        renderDropdownReleases(data.items.slice(0, 5));
+        return;
+      }
+    } catch(e) {}
+  } else {
+    setSpotifyFallback();
+  }
+
+  // Статичный фолбэк
+  renderStaticReleases();
+}
+
+function setSpotifyFallback() {
+  const el = document.getElementById('sp-followers');
+  if (el && el.querySelector('.stat-loading')) el.textContent = '—';
+  const el2 = document.getElementById('sp-popularity');
+  if (el2 && el2.querySelector('.stat-loading')) el2.textContent = '—';
+}
+
+/* =========================================================
+   YOUTUBE — требует API-ключ (бесплатно, Google Console)
+   Ключ можно ограничить по домену, поэтому безопасно хранить
+   в клиентском коде.
+   ========================================================= */
+async function loadYouTubeStats() {
+  if (!CONFIG.YOUTUBE_API_KEY) return; // ключ не указан
+  try {
+    const resp = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=statistics&forHandle=%40borntopraay&key=${CONFIG.YOUTUBE_API_KEY}`
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      const stats = data.items?.[0]?.statistics;
+      if (stats?.subscriberCount) {
+        document.getElementById('yt-subscribers').textContent = fmtNum(parseInt(stats.subscriberCount));
+      }
+    }
+  } catch(e) {}
+}
+
+/* =========================================================
+   VK — публичный API, не требует токена для открытых групп
+   Если группа закрыта или API изменится — нужен service token.
+   ========================================================= */
+async function loadVKStats() {
+  try {
+    const token = CONFIG.VK_SERVICE_TOKEN;
+    let url = `https://api.vk.com/method/groups.getById?group_ids=borntopraay&fields=members_count&v=5.199`;
+    if (token) url += `&access_token=${token}`;
+    const resp = await fetch(url);
+    if (resp.ok) {
+      const data = await resp.json();
+      // VK API возвращает либо response, либо error
+      const group = data.response?.groups?.[0] ?? data.response?.[0];
+      if (group?.members_count) {
+        document.getElementById('vk-followers').textContent = fmtNum(group.members_count);
+      }
+    }
+  } catch(e) {}
 }
 
 /* =========================================================
@@ -997,15 +1068,19 @@ async function init() {
   document.getElementById('last-updated').textContent =
     now.toLocaleDateString('ru-RU') + ' ' + now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-  // Static render first
+  // Static render first (мгновенно)
   renderDropdownReleases(KNOWN_RELEASES.slice(0, 5).map(r => ({
     name: r.title, release_date: r.year, album_type: 'single',
     external_urls: { spotify: r.url }, images: r.img ? [{ url: r.img }] : []
   })));
   renderDiscographyStatic();
 
-  // Then try live Spotify data
-  await loadSpotifyData();
+  // Параллельная загрузка всех источников
+  await Promise.allSettled([
+    loadSpotifyData(),
+    loadYouTubeStats(),
+    loadVKStats(),
+  ]);
 }
 
 document.addEventListener('DOMContentLoaded', init);
