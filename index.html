@@ -1,0 +1,96 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>borntopraay Dashboard</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<header class="hero">
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <img src="assets/photo.jpg" alt="borntopraay" class="avatar"/>
+    <div>
+      <h1>borntopraay</h1>
+      <p class="subtitle">Музыкальный digital dashboard артиста</p>
+
+      <div class="quick-links">
+        <a href="https://vk.com/borntopraay" target="_blank">VK Group</a>
+        <a href="https://vk.com/brntpry" target="_blank">VK</a>
+        <a href="https://t.me/brntpry" target="_blank">Telegram</a>
+        <a href="https://www.youtube.com/@borntopraay" target="_blank">YouTube</a>
+        <a href="https://band.link/scanner?search=borntopraay" target="_blank">BandLink</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <section class="grid stats-summary">
+    <div class="card">
+      <span>Соцсетей подключено</span>
+      <h2 id="socialCount">0</h2>
+    </div>
+
+    <div class="card">
+      <span>Музыкальных платформ</span>
+      <h2 id="musicCount">0</h2>
+    </div>
+
+    <div class="card">
+      <span>Релизов найдено</span>
+      <h2 id="releaseCount">0</h2>
+    </div>
+
+    <div class="card">
+      <span>Общий индекс</span>
+      <h2 id="powerScore">0</h2>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Социальные сети</h2>
+    <div id="socialGrid" class="grid"></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Музыкальные площадки</h2>
+    <div id="musicGrid" class="grid"></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Релизы</h2>
+    <div class="card">
+      <button class="toggle-btn" onclick="toggleBlock('releasesBlock')">Открыть список релизов</button>
+      <div id="releasesBlock" class="hidden">
+        <ul id="releaseList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Smart Links Radar</h2>
+    <div class="card">
+      <p>Мониторинг ссылок BandLink и новых релизов.</p>
+      <button class="toggle-btn" onclick="toggleBlock('smartLinks')">Показать ссылки</button>
+      <div id="smartLinks" class="hidden">
+        <ul id="smartLinksList"></ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>borntopraay dashboard • powered by AI</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
